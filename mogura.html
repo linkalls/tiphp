@@ -67,6 +67,9 @@
     <div class="text-center mt-4" x-show="gameStarted">
         <button @click="resetGame" class="bg-red-500 text-white px-6 py-3 rounded text-lg">リセット</button>
     </div>
+    <div class="text-center mt-4" x-show="!gameStarted && totalMoles > 0">
+        <span class="text-lg">表示されたモグラの数: <span x-text="totalMoles"></span></span>
+    </div>
 </div>
 
 <script>
@@ -79,6 +82,7 @@
             moleInterval: null,
             timerInterval: null,
             gameStarted: false,
+            totalMoles: 0,
             startGame() {
                 this.resetGame();
                 this.gameStarted = true;
@@ -113,6 +117,7 @@
                 this.moleInterval = setInterval(() => {
                     this.holes = this.holes.map(() => false);
                     const numMoles = Math.floor(Math.random() * maxMoles) + 1;
+                    this.totalMoles += numMoles;
                     for (let i = 0; i < numMoles; i++) {
                         const randomIndex = Math.floor(Math.random() * this.holes.length);
                         this.holes[randomIndex] = true;
@@ -131,6 +136,7 @@
                 this.score = 0;
                 this.timeLeft = 30;
                 this.holes = Array(9).fill(false);
+                this.totalMoles = 0;
                 this.gameStarted = false;
             }
         };
