@@ -1,40 +1,36 @@
 <?php
-// 商品個数の更新処理（非同期リクエスト）
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['item'])) {
+function getCounts() {
     $jsonFile = 'counts.json';
-    $data = json_decode(file_get_contents($jsonFile), true);
+    if (!file_exists($jsonFile)) {
+        $counts = [
+            'ramune' => 0,
+            'ichigo' => 0,
+            'lemon' => 0,
+            'cola' => 0,
+            'normal' => 0,
+            'people' => 0
+        ];
+        file_put_contents($jsonFile, json_encode($counts));
+    } else {
+        $counts = json_decode(file_get_contents($jsonFile), true);
+    }
+    return $counts;
+}
 
-    $item = $_POST['item'];
-    $change = (int)$_POST['change'];
-
+function updateCount($item, $change) {
+    $jsonFile = 'counts.json';
+    $data = getCounts();
     if (isset($data[$item])) {
         $data[$item] += $change;
         $data[$item] = max(0, $data[$item]); // 0未満にならないようにする
         file_put_contents($jsonFile, json_encode($data));
-        
-        // 商品のラベル名を取得
-        $labels = [
-            'ramune' => 'ラムネ',
-            'ichigo' => 'いちご',
-            'lemon' => 'レモン',
-            'cola' => 'コーラ',
-            'normal' => 'ノーマル',
-            'people' => '来た人数'
-        ];
-        
-        // メッセージにラベル名を使用
-        $message = isset($labels[$item]) ? $labels[$item] : '商品';
-        echo json_encode(['count' => $data[$item], 'message' => "{$message}の個数が" . ($change > 0 ? '増加' : '減少') . "しました"]);
-    } else {
-        echo json_encode(['error' => '無効な商品です']);
+        return $data[$item];
     }
-    exit();
+    return null;
 }
 
-// JSONから現在の個数を取得
-$jsonFile = 'counts.json';
-$counts = json_decode(file_get_contents($jsonFile), true);
-if (!$counts) {
+function resetCounts() {
+    $jsonFile = 'counts.json';
     $counts = [
         'ramune' => 0,
         'ichigo' => 0,
@@ -44,7 +40,37 @@ if (!$counts) {
         'people' => 0
     ];
     file_put_contents($jsonFile, json_encode($counts));
+    return $counts;
 }
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (isset($_POST['item'])) {
+        $item = $_POST['item'];
+        $change = (int)$_POST['change'];
+        $newCount = updateCount($item, $change);
+        if ($newCount !== null) {
+            $labels = [
+                'ramune' => 'ラムネ',
+                'ichigo' => 'いちご',
+                'lemon' => 'レモン',
+                'cola' => 'コーラ',
+                'normal' => 'ノーマル',
+                'people' => '来た人数'
+            ];
+            $message = isset($labels[$item]) ? $labels[$item] : '商品';
+            echo json_encode(['count' => $newCount, 'message' => "{$message}の個数が" . ($change > 0 ? '増加' : '減少') . "しました"]);
+        } else {
+            echo json_encode(['error' => '無効な商品です']);
+        }
+    } elseif (isset($_POST['reset'])) {
+        $counts = resetCounts();
+        echo json_encode(['message' => '全ての商品の個数がリセットされました']);
+    }
+    exit();
+}
+
+$counts = getCounts();
 ?>
 
 <!DOCTYPE html>
@@ -57,10 +83,10 @@ if (!$counts) {
     <script src="//unpkg.com/alpinejs" defer></script>
     <script src="https://unpkg.com/htmx.org@1.9.3"></script>
 </head>
-<body class="bg-gray-100 flex justify-center items-center h-screen">
+<body class="bg-gray-100 flex justify-center items-center min-h-screen">
 
 <!-- 管理画面 -->
-<div class="bg-white shadow-md rounded p-6 w-full max-w-lg" x-data="productManager()">
+<div class="bg-white shadow-md rounded p-6 w-full max-w-2xl mx-4" x-data="productManager()">
     <!-- フラッシュメッセージを固定表示 -->
     <div x-show="message" x-transition x-init="setTimeout(() => message = '', 3000)" 
          class="bg-green-200 text-green-800 p-2 rounded mb-4 fixed top-0 left-0 right-0 m-4 transition-transform duration-300 transform" 
@@ -82,7 +108,7 @@ if (!$counts) {
             <th class="text-center py-2">個数</th>
             <th class="text-center py-2">操作</th>
         </tr>
-               <template x-for="item in items" :key="item.name">
+        <template x-for="item in items" :key="item.name">
             <tr class="border-b" x-show="item.label !== '来た人数'">
                 <td class="py-2" x-text="item.label"></td>
                 <td class="text-center py-2" x-text="item.count"></td>
@@ -97,6 +123,15 @@ if (!$counts) {
             </tr>
         </template>
     </table>
+
+    <div class="text-center mb-4">
+        <span class="text-lg">合計個数: <span x-text="totalCount"></span></span>
+        <span class="text-lg ml-4">合計金額: <span x-text="totalAmount"></span>円</span>
+    </div>
+
+    <!-- <div class="text-center">
+        <button @click="resetCounts" class="bg-red-500 text-white px-4 py-2 rounded">リセット</button>
+    </div> -->
 </div>
 
 <script>
@@ -111,19 +146,43 @@ if (!$counts) {
                 { name: 'people', label: '来た人数', count: <?= $counts['people'] ?> }
             ],
             message: '',
-            updateCount(item, change) {
-                fetch("/", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: `item=${item}&change=${change}`
-                })
-                .then(response => response.json())
-                .then(data => {
+            get totalCount() {
+                return this.items.reduce((sum, item) => sum + item.count, 0);
+            },
+            get totalAmount() {
+                return this.totalCount * 100; // 全ての商品が一戸当たり100円
+            },
+            async updateCount(item, change) {
+                try {
+                    const response = await fetch("/", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: `item=${item}&change=${change}`
+                    });
+                    const data = await response.json();
                     if (data.count !== undefined) {
                         this.items.find(i => i.name === item).count = data.count;
-                        this.message = data.message; // Flashメッセージを表示
+                        this.message = data.message; // フラッシュメッセージを表示
+                    } else if (data.error) {
+                        this.message = data.error;
                     }
-                });
+                } catch (error) {
+                    this.message = 'エラーが発生しました';
+                }
+            },
+            async resetCounts() {
+                try {
+                    const response = await fetch("/", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: `reset=true`
+                    });
+                    const data = await response.json();
+                    this.items.forEach(item => item.count = 0);
+                    this.message = data.message; // フラッシュメッセージを表示
+                } catch (error) {
+                    this.message = 'エラーが発生しました';
+                }
             }
         };
     }
