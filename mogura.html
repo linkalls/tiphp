@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>モグラ叩きゲーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="//unpkg.com/alpinejs" defer></script>
+    <style>
+        .hole {
+            width: 100px;
+            height: 100px;
+            background-color: #ccc;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+        .mole {
+            width: 100px;
+            height: 100px;
+            background-size: cover;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex justify-center items-center min-h-screen">
+
+<div class="bg-white shadow-md rounded p-6 w-full max-w-md mx-4" x-data="moleGame()">
+    <h1 class="text-2xl mb-4 text-center">モグラ叩きゲーム</h1>
+    <div class="text-center mb-4">
+        <span class="text-lg">スコア: <span x-text="score"></span></span>
+    </div>
+    <div class="text-center mb-4">
+        <span class="text-lg">残り時間: <span x-text="timeLeft"></span>秒</span>
+    </div>
+    <div class="text-center mb-4">
+        <label for="difficulty" class="text-lg">難易度: </label>
+        <select id="difficulty" x-model="difficulty" class="border rounded px-2 py-1">
+            <option value="easy">簡単</option>
+            <option value="medium">普通</option>
+            <option value="hard">難しい</option>
+        </select>
+    </div>
+    <div class="text-center mt-4" x-show="!gameStarted">
+        <button @click="startGame" class="bg-green-500 text-white px-6 py-3 rounded text-lg">スタート</button>
+    </div>
+    <div class="grid grid-cols-3 gap-4" x-show="gameStarted">
+        <template x-for="(hole, index) in holes" :key="index">
+            <div class="hole" @click="hitMole(index)">
+                <div x-show="hole" class="mole">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="50" fill="#8B4513"/>
+                        <circle cx="50" cy="35" r="20" fill="#D2691E"/>
+                        <circle cx="40" cy="30" r="5" fill="#000"/>
+                        <circle cx="60" cy="30" r="5" fill="#000"/>
+                        <ellipse cx="50" cy="45" rx="10" ry="5" fill="#000"/>
+                    </svg>
+                </div>
+            </div>
+        </template>
+    </div>
+    <div class="text-center mt-4" x-show="gameStarted">
+        <button @click="resetGame" class="bg-red-500 text-white px-6 py-3 rounded text-lg">リセット</button>
+    </div>
+</div>
+
+<script>
+    function moleGame() {
+        return {
+            score: 0,
+            timeLeft: 30,
+            difficulty: 'easy',
+            holes: Array(9).fill(false),
+            moleInterval: null,
+            timerInterval: null,
+            gameStarted: false,
+            startGame() {
+                this.resetGame();
+                this.gameStarted = true;
+                this.timerInterval = setInterval(() => {
+                    if (this.timeLeft > 0) {
+                        this.timeLeft--;
+                    } else {
+                        clearInterval(this.moleInterval);
+                        clearInterval(this.timerInterval);
+                        alert('ゲーム終了！スコア: ' + this.score);
+                        this.gameStarted = false;
+                    }
+                }, 1000);
+
+                let intervalTime;
+                switch (this.difficulty) {
+                    case 'easy':
+                        intervalTime = 1000;
+                        break;
+                    case 'medium':
+                        intervalTime = 700;
+                        break;
+                    case 'hard':
+                        intervalTime = 500;
+                        break;
+                }
+
+                this.moleInterval = setInterval(() => {
+                    this.holes = this.holes.map(() => false);
+                    const randomIndex = Math.floor(Math.random() * this.holes.length);
+                    this.holes[randomIndex] = true;
+                }, intervalTime);
+            },
+            hitMole(index) {
+                if (this.holes[index]) {
+                    this.score++;
+                    this.holes[index] = false;
+                }
+            },
+            resetGame() {
+                clearInterval(this.moleInterval);
+                clearInterval(this.timerInterval);
+                this.score = 0;
+                this.timeLeft = 30;
+                this.holes = Array(9).fill(false);
+                this.gameStarted = false;
+            }
+        };
+    }
+</script>
+
+</body>
+</html>

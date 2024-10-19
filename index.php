@@ -68,6 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['message' => '全ての商品の個数がリセットされました']);
     }
     exit();
+} elseif ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['getCounts'])) {
+    header('Content-Type: application/json');
+    echo json_encode(getCounts());
+    exit();
 }
 
 $counts = getCounts();
@@ -78,6 +82,7 @@ $counts = getCounts();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>注文管理システム</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="//unpkg.com/alpinejs" defer></script>
@@ -86,7 +91,7 @@ $counts = getCounts();
 <body class="bg-gray-100 flex justify-center items-center min-h-screen">
 
 <!-- 管理画面 -->
-<div class="bg-white shadow-md rounded p-6 w-full max-w-2xl mx-4" x-data="productManager()">
+<div class="bg-white shadow-md rounded p-6 w-full max-w-2xl mx-4" x-data="productManager()" x-init="init()">
     <!-- フラッシュメッセージを固定表示 -->
     <div x-show="message" x-transition x-init="setTimeout(() => message = '', 3000)" 
          class="bg-green-200 text-green-800 p-2 rounded mb-4 fixed top-0 left-0 right-0 m-4 transition-transform duration-300 transform" 
@@ -106,12 +111,16 @@ $counts = getCounts();
         <tr class="border-b">
             <th class="text-left py-2">商品名</th>
             <th class="text-center py-2">個数</th>
+            <th class="text-center py-2">合計金額</th>
+            <th class="text-center py-2">割合</th>
             <th class="text-center py-2">操作</th>
         </tr>
         <template x-for="item in items" :key="item.name">
             <tr class="border-b" x-show="item.label !== '来た人数'">
                 <td class="py-2" x-text="item.label"></td>
                 <td class="text-center py-2" x-text="item.count"></td>
+                <td class="text-center py-2" x-text="item.count * 100 + '円'"></td>
+                <td class="text-center py-2" x-text="getPercentage(item.count)"></td>
                 <td class="text-center py-2">
                     <template x-if="item.name !== 'people'">
                         <div>
@@ -129,9 +138,9 @@ $counts = getCounts();
         <span class="text-lg ml-4">合計金額: <span x-text="totalAmount"></span>円</span>
     </div>
 
-    <!-- <div class="text-center">
+    <div class="text-center">
         <button @click="resetCounts" class="bg-red-500 text-white px-4 py-2 rounded">リセット</button>
-    </div> -->
+    </div>
 </div>
 
 <script>
@@ -146,11 +155,17 @@ $counts = getCounts();
                 { name: 'people', label: '来た人数', count: <?= $counts['people'] ?> }
             ],
             message: '',
+            previousData: {},
             get totalCount() {
-                return this.items.reduce((sum, item) => sum + item.count, 0);
+                // 来た人数を除外して合計個数を計算
+                return this.items.reduce((sum, item) => item.name !== 'people' ? sum + item.count : sum, 0);
             },
             get totalAmount() {
                 return this.totalCount * 100; // 全ての商品が一戸当たり100円
+            },
+            getPercentage(count) {
+                const percentage = (count / this.totalCount) * 100;
+                return isNaN(percentage) ? '0%' : percentage.toFixed(2) + '%';
             },
             async updateCount(item, change) {
                 try {
@@ -183,6 +198,30 @@ $counts = getCounts();
                 } catch (error) {
                     this.message = 'エラーが発生しました';
                 }
+            },
+            async fetchCounts() {
+                try {
+                    const response = await fetch("/?getCounts=true");
+                    const data = await response.json();
+                    let dataChanged = false;
+                    this.items.forEach(item => {
+                        if (data[item.name] !== undefined && data[item.name] !== this.previousData[item.name]) {
+                            item.count = data[item.name];
+                            dataChanged = true;
+                        }
+                    });
+                    if (dataChanged) {
+                        this.previousData = { ...data };
+                    }
+                } catch (error) {
+                    console.error('エラーが発生しました', error);
+                }
+            },
+            init() {
+                this.fetchCounts();
+                setInterval(() => {
+                    this.fetchCounts();
+                }, 100); // 0.1秒ごとにデータを取得
             }
         };
     }
