@@ -94,22 +94,29 @@
                 }, 1000);
 
                 let intervalTime;
+                let maxMoles;
                 switch (this.difficulty) {
                     case 'easy':
                         intervalTime = 1000;
+                        maxMoles = 1;
                         break;
                     case 'medium':
                         intervalTime = 700;
+                        maxMoles = 2;
                         break;
                     case 'hard':
                         intervalTime = 500;
+                        maxMoles = 3;
                         break;
                 }
 
                 this.moleInterval = setInterval(() => {
                     this.holes = this.holes.map(() => false);
-                    const randomIndex = Math.floor(Math.random() * this.holes.length);
-                    this.holes[randomIndex] = true;
+                    const numMoles = Math.floor(Math.random() * maxMoles) + 1;
+                    for (let i = 0; i < numMoles; i++) {
+                        const randomIndex = Math.floor(Math.random() * this.holes.length);
+                        this.holes[randomIndex] = true;
+                    }
                 }, intervalTime);
             },
             hitMole(index) {
